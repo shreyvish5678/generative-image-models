@@ -118,3 +118,4 @@ class UpsampleBlock(nn.Module):
     def forward(self, x):
         x = F.interpolate(x, scale_factor=2, mode='nearest')
         return self.conv(x)
+
