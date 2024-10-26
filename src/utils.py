@@ -79,3 +79,42 @@ class ResidualBlock(nn.Module):
         
         x = self.conv_2(x)
         return x + self.residual_layer(residue)
+    
+class ResidualBlockTime(nn.Module):
+    def __init__(self, in_channels, out_channels, n_time=128):
+        super().__init__()
+        self.groupnorm_1 = nn.GroupNorm(32, in_channels)
+        self.conv_1 = nn.Conv2d(in_channels, out_channels, kernel_size=3, padding=1)
+        self.linear_time = nn.Linear(n_time, out_channels)
+
+        self.groupnorm_2 = nn.GroupNorm(32, out_channels)
+        self.conv_2 = nn.Conv2d(out_channels, out_channels, kernel_size=3, padding=1)
+
+        if in_channels == out_channels:
+            self.residual_layer = nn.Identity()
+        else:
+            self.residual_layer = nn.Conv2d(in_channels, out_channels, kernel_size=1, padding=0)
+
+    def forward(self, x, t):
+        residue = x
+        x = self.groupnorm_1(x)
+        x = F.silu(x)
+        x = self.conv_1(x)
+
+        t = F.silu(t)
+        t = self.linear_time(t)
+        
+        merged = x + t.unsqueeze(-1).unsqueeze(-1)
+        merged = self.groupnorm_2(merged)
+        merged = F.silu(merged)
+        merged = self.conv_2(merged)
+
+        return merged + self.residual_layer(residue)
+    
+class UpsampleBlock(nn.Module):
+    def __init__(self, channels):
+        super().__init__()
+        self.conv = nn.Conv2d(channels, channels, kernel_size=3, padding=1)
+    def forward(self, x):
+        x = F.interpolate(x, scale_factor=2, mode='nearest')
+        return self.conv(x)

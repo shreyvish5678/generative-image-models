@@ -1,7 +1,8 @@
 import torch
 from torch import nn
+import os
 from torch.nn import functional as F
-from src.utils import *
+from utils import *
 from tqdm import tqdm
 
 class Generator(nn.Module):
@@ -32,9 +33,10 @@ class Generator(nn.Module):
         return x
         
 class Discriminator(nn.Module):
-    def __init__(self, channels=[32, 64, 128, 256], depth=2, channel=1, in_size=192, dropout=0.2, sigmoid=True):
+    def __init__(self, channels=[32, 64, 128, 256], depth=1, channel=1, in_size=192, dropout=0.2, sigmoid=True):
         super().__init__()
         self.model = nn.ModuleList()
+        self.model.append(nn.Conv2d(channel, channels[0], kernel_size=3, padding=1))
         for i in range(len(channels)-1):
             self.model.append(nn.MaxPool2d(2, 2))
             self.model.append(ResidualBlock(channels[i], channels[i+1]))
@@ -42,11 +44,7 @@ class Discriminator(nn.Module):
                 self.model.append(ResidualBlock(channels[i+1], channels[i+1]))
             self.model.append(nn.LeakyReLU(0.2, inplace=True))
             self.model.append(nn.Dropout(dropout))
-        self.proj = nn.Sequential(
-            nn.Linear(channels[-1] * (in_size // 2 ** (len(channels) - 1)) ** 2, 128),
-            nn.LeakyReLU(0.2, inplace=True),
-            nn.Linear(128, 1)
-        )
+        self.proj = nn.Linear(channels[-1] * (in_size // 2 ** (len(channels) - 1)) ** 2, 1)
         self.sigmoid = sigmoid
     def forward(self, x):
         for layer in self.model:
@@ -59,7 +57,7 @@ class Discriminator(nn.Module):
     
 
 class GAN(nn.Module):
-    def __init__(self, generator_channels=[256, 128, 64, 32], discriminator_channels=[32, 64, 128, 256], generator_depth=2, discriminator_depth=2, channel=1, noise_vector=128, in_size=192, dropout=0.2):
+    def __init__(self, generator_channels=[256, 128, 64, 32], discriminator_channels=[32, 64, 128, 256], generator_depth=2, discriminator_depth=1, channel=1, noise_vector=128, in_size=192, dropout=0.2):
         super().__init__()
         self.generator = Generator(generator_channels, generator_depth, channel, noise_vector, in_size)
         self.discriminator = Discriminator(discriminator_channels, discriminator_depth, channel, in_size, dropout)
@@ -86,6 +84,7 @@ class GAN(nn.Module):
         disc_optimizer = config["disc_optimizer"]
         save_path = config["save_path"]
         save_interval = config["save_interval"]
+        os.makedirs(save_path, exist_ok=True)   
         self.generator.train()
         self.discriminator.train()
         for epoch in range(epochs):
@@ -128,7 +127,7 @@ class GAN(nn.Module):
                 print(f"Model saved at {disc_checkpoint_path}")
 
 class WGAN:
-    def __init__(self, generator_channels=[256, 128, 64, 32], discriminator_channels=[32, 64, 128, 256], generator_depth=2, discriminator_depth=2, channel=1, noise_vector=128, in_size=192, dropout=0.2, gp_weight=10, every_n_critic=5):
+    def __init__(self, generator_channels=[256, 128, 64, 32], discriminator_channels=[32, 64, 128, 256], generator_depth=2, discriminator_depth=1, channel=1, noise_vector=128, in_size=192, dropout=0.2, gp_weight=10, every_n_critic=5):
         super().__init__()
         self.generator = Generator(generator_channels, generator_depth, channel, noise_vector, in_size)
         self.discriminator = Discriminator(discriminator_channels, discriminator_depth, channel, in_size, dropout, sigmoid=False)
@@ -167,6 +166,7 @@ class WGAN:
         disc_optimizer = config["disc_optimizer"]
         save_path = config["save_path"]
         save_interval = config["save_interval"]
+        os.makedirs(save_path, exist_ok=True)   
         self.generator.train()
         self.discriminator.train()
         for epoch in range(epochs):
@@ -214,3 +214,13 @@ class WGAN:
                 torch.save(self.discriminator.state_dict(), disc_checkpoint_path)
                 print(f"Model saved at {gen_checkpoint_path}")
                 print(f"Model saved at {disc_checkpoint_path}")
+
+if __name__ == '__main__':
+    model = GAN()
+    x = torch.randn(1, 128)
+    output = model.generator(x)
+    print(output.shape)
+    pred = model.discriminator(output)
+    print(pred.shape)
+    print(sum(p.numel() for p in model.generator.parameters()))
+    print(sum(p.numel() for p in model.discriminator.parameters()))

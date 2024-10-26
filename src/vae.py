@@ -2,7 +2,7 @@ import torch
 from torch import nn
 import os
 from torch.nn import functional as F
-from src.utils import *
+from utils import *
 from tqdm import tqdm
     
 class Decoder(nn.Module):
@@ -18,7 +18,6 @@ class Decoder(nn.Module):
             for _ in range(depth-1):
                 self.model.append(ResidualBlock(channels[i+1], channels[i+1]))
             if i == len(channels) - 2:
-                self.model.append(nn.Upsample(scale_factor=2))
                 self.model.append(AttentionBlock(channels[i+1]))
                 self.model.append(ResidualBlock(channels[i+1], channels[i+1]))
                 self.model.append(nn.GroupNorm(32, channels[i+1]))
@@ -42,7 +41,6 @@ class Encoder(nn.Module):
             for _ in range(depth-1):
                 self.model.append(ResidualBlock(channels[i+1], channels[i+1]))
             if i == len(channels) - 2:
-                self.model.append(nn.Conv2d(channels[i+1], channels[i+1], kernel_size=3, stride=2, padding=0))
                 self.model.append(AttentionBlock(channels[i+1]))
                 self.model.append(ResidualBlock(channels[i+1], channels[i+1]))
                 self.model.append(nn.GroupNorm(32, channels[i+1]))
@@ -65,7 +63,7 @@ class Encoder(nn.Module):
         return z, mean, logvar
     
 class VAE(nn.Module):
-    def __init__(self, encoder_channels=[32, 64, 128, 128], encoder_depth=2, decoder_channels=[128, 128, 64, 32], decoder_depth=3, in_channels=3, out_channels=3, clamp_bound=10, in_size=192):
+    def __init__(self, encoder_channels=[32, 64, 128, 128], encoder_depth=2, decoder_channels=[128, 128, 64, 32], decoder_depth=3, in_channels=1, out_channels=4, clamp_bound=10, in_size=192):
         super().__init__()
         self.encoder = Encoder(encoder_channels, encoder_depth, in_channels, out_channels, clamp_bound)
         self.decoder = Decoder(decoder_channels, decoder_depth, out_channels, in_channels)
@@ -117,3 +115,12 @@ class VAE(nn.Module):
                 checkpoint_path = f"{save_path}/vae_epoch_{epoch+1}.pt"
                 torch.save(model.state_dict(), checkpoint_path)
                 print(f"Model saved at {checkpoint_path}")
+
+if __name__ == "__main__":
+    model = VAE()
+    x = torch.randn(1, 1, 192, 192)
+    z, mean, logvar = model.encoder(x)
+    x_recon = model.decoder(z)
+    print(z.shape)
+    print(x_recon.shape)
+    print(sum(p.numel() for p in model.parameters()))
