@@ -2,7 +2,7 @@ import torch
 from torch import nn
 import os
 from torch.nn import functional as F
-from utils import *
+from uncond_models.utils import *
 from tqdm import tqdm
 
 class Generator(nn.Module):
@@ -57,10 +57,10 @@ class Discriminator(nn.Module):
     
 
 class GAN(nn.Module):
-    def __init__(self, generator_channels=[256, 128, 64, 32], discriminator_channels=[32, 64, 128, 256], generator_depth=2, discriminator_depth=1, channel=1, noise_vector=128, in_size=192, dropout=0.2):
+    def __init__(self, channels=[256, 128, 64, 32], depth=2, in_channels=1, noise_vector=128, in_size=256, dropout=0.2):
         super().__init__()
-        self.generator = Generator(generator_channels, generator_depth, channel, noise_vector, in_size)
-        self.discriminator = Discriminator(discriminator_channels, discriminator_depth, channel, in_size, dropout)
+        self.generator = Generator(channels, depth, in_channels, noise_vector, in_size)
+        self.discriminator = Discriminator(list(reversed(channels)), depth-1, in_channels, in_size, dropout)
         self.noise_size = noise_vector
 
     def disc_loss(self, real, fake):
@@ -216,7 +216,7 @@ class WGAN:
                 print(f"Model saved at {disc_checkpoint_path}")
 
 if __name__ == '__main__':
-    model = GAN()
+    model = GAN(in_size=256, depth=2)
     x = torch.randn(1, 128)
     output = model.generator(x)
     print(output.shape)

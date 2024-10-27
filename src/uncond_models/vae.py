@@ -2,7 +2,7 @@ import torch
 from torch import nn
 import os
 from torch.nn import functional as F
-from utils import *
+from uncond_models.utils import *
 from tqdm import tqdm
     
 class Decoder(nn.Module):
@@ -63,11 +63,11 @@ class Encoder(nn.Module):
         return z, mean, logvar
     
 class VAE(nn.Module):
-    def __init__(self, encoder_channels=[32, 64, 128, 128], encoder_depth=2, decoder_channels=[128, 128, 64, 32], decoder_depth=3, in_channels=1, out_channels=4, clamp_bound=10, in_size=192):
+    def __init__(self, channels=[32, 64, 128, 128], depth=3, in_channels=1, out_channels=4, clamp_bound=10, in_size=256):
         super().__init__()
-        self.encoder = Encoder(encoder_channels, encoder_depth, in_channels, out_channels, clamp_bound)
-        self.decoder = Decoder(decoder_channels, decoder_depth, out_channels, in_channels)
-        self.latent_size = (1, out_channels, in_size // 2**(len(encoder_channels) - 1), in_size // 2**(len(encoder_channels) - 1))
+        self.encoder = Encoder(channels, depth-1, in_channels, out_channels, clamp_bound)
+        self.decoder = Decoder(list(reversed(channels)), depth, out_channels, in_channels)
+        self.latent_size = (1, out_channels, in_size // 2**(len(channels) - 2), in_size // 2**(len(channels) - 2))
 
     def forward(self, x):
         z, mean, logvar = self.encoder(x)
@@ -117,10 +117,11 @@ class VAE(nn.Module):
                 print(f"Model saved at {checkpoint_path}")
 
 if __name__ == "__main__":
-    model = VAE()
-    x = torch.randn(1, 1, 192, 192)
+    model = VAE(in_size=128)
+    x = torch.randn(1, 1, 128, 128)
     z, mean, logvar = model.encoder(x)
     x_recon = model.decoder(z)
     print(z.shape)
     print(x_recon.shape)
+    print(model.latent_size)
     print(sum(p.numel() for p in model.parameters()))

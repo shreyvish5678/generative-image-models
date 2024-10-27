@@ -161,6 +161,33 @@ class DiTBlock(nn.Module):
 
     def forward(self, x, t):
         shift_msa, scale_msa, gate_msa, shift_mlp, scale_mlp, gate_mlp = self.modulation(t).chunk(6, dim=1)
-        x = x + gate_msa.unsqueeze(1) * self.attn(modulate(self.norm1(x), shift_msa, scale_msa))
-        x = x + gate_mlp.unsqueeze(1) * self.mlp(modulate(self.norm2(x), shift_mlp, scale_mlp))
+        x = x + gate_msa.unsqueeze(1) * self.attn(modulate(self.norm_1(x), shift_msa, scale_msa))
+        x = x + gate_mlp.unsqueeze(1) * self.mlp(modulate(self.norm_2(x), shift_mlp, scale_mlp))
+        return x
+
+class PatchEmbed(nn.Module):
+    def __init__(self, img_size=192, patch_size=2, in_chans=1, embed_dim=768, flatten=True, bias=True, dynamic_img_pad=False):
+        super().__init__()
+        self.patch_size = (patch_size, patch_size)
+        self.img_size = (img_size, img_size)
+        self.grid_size = (img_size // patch_size, img_size // patch_size)
+        self.num_patches = self.grid_size[0] * self.grid_size[1]
+        self.flatten = flatten
+        self.dynamic_img_pad = dynamic_img_pad
+
+        self.proj = nn.Conv2d(in_chans, embed_dim, kernel_size=patch_size, stride=patch_size, bias=bias)
+
+    def forward(self, x):
+        B, C, H, W = x.shape
+        
+        if self.dynamic_img_pad:
+            pad_h = (self.patch_size[0] - H % self.patch_size[0]) % self.patch_size[0]
+            pad_w = (self.patch_size[1] - W % self.patch_size[1]) % self.patch_size[1]
+            x = F.pad(x, (0, pad_w, 0, pad_h))
+        
+        x = self.proj(x)
+        
+        if self.flatten:
+            x = x.flatten(2).transpose(1, 2)
+        
         return x
