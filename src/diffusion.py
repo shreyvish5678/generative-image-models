@@ -68,18 +68,6 @@ class DiffusionUNet(nn.Module):
                 x = layer(x)
         return self.final_layer(x)
     
-    @staticmethod
-    def time_embedding(t, n_time=32):
-        freqs = torch.pow(10000, -torch.arange(start=0, end=n_time / 2) / (n_time / 2)) 
-        x = torch.tensor([t])[:, None] * freqs[None]
-        x = torch.cat([torch.sin(x), torch.cos(x)], dim=-1)
-        return x
-
-    def add_noise(self, x_0, t, device):
-        a_bar = self.alphas_cumprod[t].reshape(-1, 1, 1, 1)
-        noise = torch.randn_like(x_0).to(device)
-        x_t = x_0 * a_bar + (1 - a_bar).sqrt() * noise
-        return x_t, noise
     
     def train_diffusion(self, config):
         device = config["device"] if "device" in config else "cuda" if torch.cuda.is_available() else "cpu"
@@ -99,8 +87,8 @@ class DiffusionUNet(nn.Module):
             for batch in tqdm(dataloader, desc=f"Epoch {epoch+1}/{epochs}"):
                 batch = batch.to(device)
                 t = torch.randint(0, self.steps, (batch.shape[0],), dtype=torch.long).to(device)
-                x_t, noise = self.add_noise(batch, t, device)
-                time_embedding = self.time_embedding(t, n_time=32).to(device)
+                x_t, noise = add_noise(batch, t, self.alphas_cumprod, device)
+                time_embedding = time_embedding(t, n_time=32).to(device)
                 optimizer.zero_grad()
                 noise_pred = model(x_t, time_embedding)
                 loss = F.mse_loss(noise_pred, noise)
@@ -116,10 +104,14 @@ class DiffusionUNet(nn.Module):
                 torch.save(model.state_dict(), checkpoint_path)
                 print(f"Model saved at {checkpoint_path}")
 
+class DiffusionTransformer(nn.Module):
+    def __init__(self, in_size=32, patch_size=2, in_channels=4, hidden_size=1152, depth=28, heads=16, mlp_ratio=4, class_dropout=0.1, num_classes=1000, learn_sigma=True):
+        pass
+
 if __name__ == '__main__':
-    model = DiffusionUNet()
+    model = DiffusionUNet(n_time=48)
     x = torch.randn(1, 4, 48, 48)
-    t = torch.randn(1, 32)
+    t = torch.randn(1, 48)
     y = model(x, t)
     print(y.shape)
     print(sum(p.numel() for p in model.parameters()))   

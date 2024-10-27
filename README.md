@@ -1,5 +1,5 @@
 Next Steps:
-- Implement diffusion models and diffusion transformers training and sampling
+- Implement patch embedding for diffusion transformer
 
 Models:
 - GANs (Try different types of GANs - DCGAN, CGAN, WGAN)
