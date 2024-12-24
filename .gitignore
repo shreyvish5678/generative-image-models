@@ -1,1 +1,4 @@
 __pycache__/
+.vscode/
+diffusion_unet/
+thumbnails128x128/
